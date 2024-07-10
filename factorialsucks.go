@@ -5,8 +5,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/alejoar/factorialsucks/factorial"
 	"github.com/urfave/cli/v2"
+
+	"github.com/alejoar/factorialsucks/factorial"
 )
 
 var today time.Time = time.Now()
@@ -32,20 +33,20 @@ func main() {
 				Aliases:     []string{"y"},
 				Usage:       "clock-in year `YYYY`",
 				DefaultText: "current year",
-				Value:       today.Year(),
+				Value:       2024,
 			},
 			&cli.IntFlag{
 				Name:        "month",
 				Aliases:     []string{"m"},
 				Usage:       "clock-in month `MM`",
 				DefaultText: "current month",
-				Value:       int(today.Month()),
+				Value:       int(7),
 			},
 			&cli.StringFlag{
 				Name:    "clock-in",
 				Aliases: []string{"ci"},
 				Usage:   "clock-in time `HH:MM`",
-				Value:   "10:00",
+				Value:   "09:00",
 			},
 			&cli.StringFlag{
 				Name:    "clock-out",
@@ -88,7 +89,9 @@ func main() {
 
 func factorialsucks(c *cli.Context) error {
 	var year, month int
-	email, password := readCredentials(c)
+	//email, password := readCredentials(c)
+	email := "xxxx_XXXx"
+	password := "XxxXX_XXXX"
 	today_only := c.Bool("today")
 	if today_only {
 		year = today.Year()
@@ -102,6 +105,7 @@ func factorialsucks(c *cli.Context) error {
 	dry_run := c.Bool("dry-run")
 	until_today := c.Bool("until-today")
 	reset_month := c.Bool("reset-month")
+	//reset_month = true
 
 	client := factorial.NewFactorialClient(email, password, year, month, clock_in, clock_out, today_only, until_today)
 	if reset_month {

@@ -19,46 +19,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-const BASE_URL = "https://api.factorialhr.com"
-
-type factorialClient struct {
-	http.Client
-	employee_id int
-	period_id   int
-	calendar    []calendarDay
-	shifts      []shift
-	year        int
-	month       int
-	clock_in    string
-	clock_out   string
-	today_only  bool
-	until_today bool
-}
-
-type period struct {
-	Id          int
-	Employee_id int
-	Year        int
-	Month       int
-}
-
-type calendarDay struct {
-	Id           string
-	Day          int
-	Date         string
-	Is_laborable bool
-	Is_leave     bool
-	Leave_name   string
-}
-
-type shift struct {
-	Id        int64  `json:"id"`
-	Period_id int64  `json:"period_id"`
-	Day       int    `json:"day"`
-	Clock_in  string `json:"clock_in"`
-	Clock_out string `json:"clock_out"`
-	Minutes   int64  `json:"minutes"`
-}
+const BaseUrl = "https://api.factorialhr.com"
 
 type fun func() error
 
@@ -69,7 +30,7 @@ func handleError(spinner *spinner.Spinner, err error) {
 	}
 }
 
-func NewFactorialClient(email, password string, year, month int, in, out string, today_only, until_today bool) *factorialClient {
+func NewFactorialClient(email, password string, year, month int, in, out string, todayOnly, untilToday bool) *factorialClient {
 	spinner := spinner.New(spinner.CharSets[14], 60*time.Millisecond)
 	spinner.Start()
 	c := new(factorialClient)
@@ -77,8 +38,8 @@ func NewFactorialClient(email, password string, year, month int, in, out string,
 	c.month = month
 	c.clock_in = in
 	c.clock_out = out
-	c.today_only = today_only
-	c.until_today = until_today
+	c.today_only = todayOnly
+	c.until_today = untilToday
 	options := cookiejar.Options{
 		PublicSuffixList: publicsuffix.List,
 	}
@@ -101,21 +62,24 @@ func (c *factorialClient) ClockIn(dry_run bool) {
 	var t time.Time
 	var message string
 	var body []byte
-	var shift shift
+	var entity newShift
 	var resp *http.Response
 	var ok bool
 	now := time.Now()
-	shift.Period_id = int64(c.period_id)
-	shift.Clock_in = c.clock_in
-	shift.Clock_out = c.clock_out
-	shift.Minutes = 0
+	//shift.Period_id = int64(c.period_id)
+	entity.ClockIn = c.clock_in
+	entity.ClockOut = c.clock_out
+	entity.Minutes = nil
+	entity.EmployeeId = 282471
+	entity.Workable = true
+	entity.Source = "desktop"
 	for _, d := range c.calendar {
 		spinner.Restart()
 		spinner.Reverse()
 		t = time.Date(c.year, time.Month(c.month), d.Day, 0, 0, 0, 0, time.UTC)
 		message = fmt.Sprintf("%s... ", t.Format("02 Jan"))
 		spinner.Prefix = message + " "
-		clocked_in, clocked_times := c.clockedIn(d.Day, shift)
+		clocked_in, clocked_times := c.clockedIn(d.Day, entity)
 		if clocked_in {
 			message = fmt.Sprintf("%s ❌ Period overlap: %s\n", message, clocked_times)
 		} else if d.Is_leave {
@@ -130,11 +94,48 @@ func (c *factorialClient) ClockIn(dry_run bool) {
 			ok = true
 			if !dry_run {
 				ok = false
-				shift.Day = d.Day
-				body, _ = json.Marshal(shift)
-				resp, _ = c.Post(BASE_URL+"/attendance/shifts", "application/json;charset=UTF-8", bytes.NewBuffer(body))
-				if resp.StatusCode == 201 {
-					ok = true
+				fmt.Println(d.Date)
+				entity.Day = d.Day
+				entity.LocationType = "work_from_home"
+				entity.Source = "desktop"
+				fecha, err := time.Parse("2006-01-02", d.Date)
+				if err != nil {
+					fmt.Println("Error al convertir la cadena a fecha:", err)
+					return
+				}
+				if fecha.Weekday() == time.Weekday(5) || fecha.Month() == time.Month(7) {
+					entity.ClockIn = "08:00"
+					entity.ClockOut = "15:00"
+					entity.Date = fecha.Format("2006-01-02")
+					entity.LocationType = "work_from_home"
+					entity.Minutes = nil
+					entity.ReferenceDate = fecha.Format("2006-01-02")
+					entity.Source = "desktop"
+					entity.TimeSettingsBreakConfigurationId = nil
+					entity.Workable = true
+
+					body, _ = json.Marshal(entity)
+					resp, _ = c.Post(BaseUrl+"/attendance/shifts", "application/json;charset=UTF-8", bytes.NewReader(body))
+					if resp.StatusCode == 201 {
+						ok = true
+					}
+					fmt.Println(resp.StatusCode)
+
+				} else {
+					entity.ClockIn = "09:00"
+					entity.ClockOut = "14:15"
+					body, _ = json.Marshal(entity)
+					resp, _ = c.Post(BaseUrl+"/attendance/shifts", "application/json;charset=UTF-8", bytes.NewBuffer(body))
+					if resp.StatusCode == 201 {
+						ok = true
+					}
+					entity.ClockIn = "15:00"
+					entity.ClockOut = "18:00"
+					body, _ = json.Marshal(entity)
+					resp, _ = c.Post(BaseUrl+"/attendance/shifts", "application/json;charset=UTF-8", bytes.NewBuffer(body))
+					if resp.StatusCode == 201 {
+						ok = true
+					}
 				}
 			}
 			if ok {
@@ -172,7 +173,7 @@ func (c *factorialClient) login(email, password string) error {
 		return string(data)[start : start+end]
 	}
 
-	resp, _ := c.Get(BASE_URL + "/users/sign_in")
+	resp, _ := c.Get(BaseUrl + "/users/sign_in")
 	csrf_token := getCSRFToken(resp)
 	body := url.Values{
 		"authenticity_token": {csrf_token},
@@ -182,7 +183,7 @@ func (c *factorialClient) login(email, password string) error {
 		"user[remember_me]":  {"0"},
 		"commit":             {"Sign in"},
 	}
-	resp, _ = c.PostForm(BASE_URL+"/users/sign_in", body)
+	resp, _ = c.PostForm(BaseUrl+"/users/sign_in", body)
 	if err := getLoginError(resp); err != "" {
 		return errors.New(err)
 	}
@@ -191,7 +192,7 @@ func (c *factorialClient) login(email, password string) error {
 
 func (c *factorialClient) setPeriodId() error {
 	err := errors.New("Could not find the specified year/month in the available periods (" + strconv.Itoa(c.month) + "/" + strconv.Itoa(c.year) + ")")
-	resp, _ := c.Get(BASE_URL + "/attendance/periods?year=" + strconv.Itoa(c.year) + "&month=" + strconv.Itoa(c.month))
+	resp, _ := c.Get(BaseUrl + "/attendance/periods?year=" + strconv.Itoa(c.year) + "&month=" + strconv.Itoa(c.month))
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		return err
@@ -209,8 +210,32 @@ func (c *factorialClient) setPeriodId() error {
 	return err
 }
 
+func (c *factorialClient) CheckHourCalendar(calendar []calendarDay) error {
+	//https: //api.factorialhr.com/attendance/periods?year=2024&month=7&employee_id=282471&start_on=2024-07-01&end_on=2024-07-31
+	u, _ := url.Parse(BaseUrl + "/attendance/periods")
+	q := u.Query()
+	q.Set("year", strconv.Itoa(c.year))
+	q.Set("month", strconv.Itoa(c.month))
+	q.Set("employee_id", strconv.Itoa(c.employee_id))
+	q.Set("start_on", "2024-07-01")
+	q.Set("end_on", "2024-07-31")
+	u.RawQuery = q.Encode()
+	resp, _ := c.Get(u.String())
+	if resp.StatusCode != 200 {
+		return errors.New("Error retrieving calendar data")
+	}
+	defer resp.Body.Close()
+	var minutesLeft []Period
+	body, _ := ioutil.ReadAll(resp.Body)
+	json.Unmarshal(body, &minutesLeft)
+	for i, _ := range c.calendar {
+		c.calendar[i].MinutesLeft = minutesLeft[0].EstimatedRegularMinutesDistribution[i]
+	}
+	return nil
+}
+
 func (c *factorialClient) setCalendar() error {
-	u, _ := url.Parse(BASE_URL + "/attendance/calendar")
+	u, _ := url.Parse(BaseUrl + "/attendance/calendar")
 	q := u.Query()
 	q.Set("id", strconv.Itoa(c.employee_id))
 	q.Set("year", strconv.Itoa(c.year))
@@ -226,11 +251,16 @@ func (c *factorialClient) setCalendar() error {
 	sort.Slice(c.calendar, func(i, j int) bool {
 		return c.calendar[i].Day < c.calendar[j].Day
 	})
+	err := c.CheckHourCalendar(c.calendar)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (c *factorialClient) setShifts() error {
-	u, _ := url.Parse(BASE_URL + "/attendance/shifts")
+	u, _ := url.Parse(BaseUrl + "/attendance/shifts")
 	q := u.Query()
 	q.Set("employee_id", strconv.Itoa(c.employee_id))
 	q.Set("year", strconv.Itoa(c.year))
@@ -246,16 +276,16 @@ func (c *factorialClient) setShifts() error {
 	return nil
 }
 
-func (c *factorialClient) clockedIn(day int, input_shift shift) (bool, string) {
-	clock_in, _ := strconv.Atoi(strings.Join(strings.Split(input_shift.Clock_in, ":"), ""))
-	clock_out, _ := strconv.Atoi(strings.Join(strings.Split(input_shift.Clock_out, ":"), ""))
+func (c *factorialClient) clockedIn(day int, input_shift newShift) (bool, string) {
+	clockIn, _ := strconv.Atoi(strings.Join(strings.Split(input_shift.ClockIn, ":"), ""))
+	clockOut, _ := strconv.Atoi(strings.Join(strings.Split(input_shift.ClockOut, ":"), ""))
 	for _, shift := range c.shifts {
 		if shift.Day == day {
-			shift_clock_in, _ := strconv.Atoi(strings.Join(strings.Split(shift.Clock_in, ":"), ""))
-			shift_clock_out, _ := strconv.Atoi(strings.Join(strings.Split(shift.Clock_out, ":"), ""))
-			if (clock_in < shift_clock_in && shift_clock_in < clock_out) ||
-				(clock_in < shift_clock_out && shift_clock_out < clock_out) ||
-				(shift_clock_in <= clock_in && shift_clock_out >= clock_out) {
+			shiftClockIn, _ := strconv.Atoi(strings.Join(strings.Split(shift.Clock_in, ":"), ""))
+			shiftClockOut, _ := strconv.Atoi(strings.Join(strings.Split(shift.Clock_out, ":"), ""))
+			if (clockIn < shiftClockIn && shiftClockIn < clockOut) ||
+				(clockIn < shiftClockOut && shiftClockOut < clockOut) ||
+				(shiftClockIn <= clockIn && shiftClockOut >= clockOut) {
 				return true, strings.Join([]string{shift.Clock_in, shift.Clock_out}, " - ")
 			}
 		}
@@ -267,7 +297,7 @@ func (c *factorialClient) ResetMonth() {
 	var t time.Time
 	var message string
 	for _, shift := range c.shifts {
-		req, _ := http.NewRequest("DELETE", BASE_URL+"/attendance/shifts/"+strconv.Itoa(int(shift.Id)), nil)
+		req, _ := http.NewRequest("DELETE", BaseUrl+"/attendance/shifts/"+strconv.Itoa(int(shift.Id)), nil)
 		resp, _ := c.Do(req)
 		t = time.Date(c.year, time.Month(c.month), shift.Day, 0, 0, 0, 0, time.UTC)
 		message = fmt.Sprintf("%s... ", t.Format("02 Jan"))
