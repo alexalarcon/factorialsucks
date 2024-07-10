@@ -103,7 +103,8 @@ func (c *factorialClient) ClockIn(dry_run bool) {
 					fmt.Println("Error al convertir la cadena a fecha:", err)
 					return
 				}
-				if fecha.Weekday() == time.Weekday(5) || fecha.Month() == time.Month(7) {
+				if d.MinutesLeft == 420 {
+					//fecha.Weekday() == time.Weekday(5) || fecha.Month() == time.Month(7) {
 					entity.ClockIn = "08:00"
 					entity.ClockOut = "15:00"
 					entity.Date = fecha.Format("2006-01-02")
@@ -121,7 +122,8 @@ func (c *factorialClient) ClockIn(dry_run bool) {
 					}
 					fmt.Println(resp.StatusCode)
 
-				} else {
+				}
+				if d.MinutesLeft == 495 {
 					entity.ClockIn = "09:00"
 					entity.ClockOut = "14:15"
 					body, _ = json.Marshal(entity)
@@ -214,11 +216,12 @@ func (c *factorialClient) CheckHourCalendar(calendar []calendarDay) error {
 	//https: //api.factorialhr.com/attendance/periods?year=2024&month=7&employee_id=282471&start_on=2024-07-01&end_on=2024-07-31
 	u, _ := url.Parse(BaseUrl + "/attendance/periods")
 	q := u.Query()
+	fmt.Print(c.calendar)
 	q.Set("year", strconv.Itoa(c.year))
 	q.Set("month", strconv.Itoa(c.month))
 	q.Set("employee_id", strconv.Itoa(c.employee_id))
-	q.Set("start_on", "2024-07-01")
-	q.Set("end_on", "2024-07-31")
+	q.Set("start_on", c.calendar[0].Date)
+	q.Set("end_on", c.calendar[len(c.calendar)-1].Date)
 	u.RawQuery = q.Encode()
 	resp, _ := c.Get(u.String())
 	if resp.StatusCode != 200 {
