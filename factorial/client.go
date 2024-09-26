@@ -126,6 +126,13 @@ func (c *factorialClient) ClockIn(dry_run bool) {
 				if d.MinutesLeft == 495 {
 					entity.ClockIn = "09:00"
 					entity.ClockOut = "14:15"
+					entity.Date = fecha.Format("2006-01-02")
+					entity.LocationType = "work_from_home"
+					entity.Minutes = nil
+					entity.ReferenceDate = fecha.Format("2006-01-02")
+					entity.Source = "desktop"
+					entity.TimeSettingsBreakConfigurationId = nil
+					entity.Workable = true
 					body, _ = json.Marshal(entity)
 					resp, _ = c.Post(BaseUrl+"/attendance/shifts", "application/json;charset=UTF-8", bytes.NewBuffer(body))
 					if resp.StatusCode == 201 {
@@ -133,6 +140,13 @@ func (c *factorialClient) ClockIn(dry_run bool) {
 					}
 					entity.ClockIn = "15:00"
 					entity.ClockOut = "18:00"
+					entity.Date = fecha.Format("2006-01-02")
+					entity.LocationType = "work_from_home"
+					entity.Minutes = nil
+					entity.ReferenceDate = fecha.Format("2006-01-02")
+					entity.Source = "desktop"
+					entity.TimeSettingsBreakConfigurationId = nil
+					entity.Workable = true
 					body, _ = json.Marshal(entity)
 					resp, _ = c.Post(BaseUrl+"/attendance/shifts", "application/json;charset=UTF-8", bytes.NewBuffer(body))
 					if resp.StatusCode == 201 {
