@@ -33,14 +33,14 @@ func main() {
 				Aliases:     []string{"y"},
 				Usage:       "clock-in year `YYYY`",
 				DefaultText: "current year",
-				Value:       2024,
+				Value:       2025,
 			},
 			&cli.IntFlag{
 				Name:        "month",
 				Aliases:     []string{"m"},
 				Usage:       "clock-in month `MM`",
 				DefaultText: "current month",
-				Value:       int(9),
+				Value:       int(3),
 			},
 			&cli.StringFlag{
 				Name:    "clock-in",
